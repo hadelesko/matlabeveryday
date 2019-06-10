@@ -1,0 +1,655 @@
+function[AccX AccY AccZ GyrX GyrY GyrZ MagX MagY MagZ Q0 Q1 Q2 Q3 Vbat globdata glbdpeak ]=FAXYZ()
+ 
+%%%Inputdaten importieren
+ 
+ssfile = uigetfile; % File Sensordaten
+anofile= uigetfile; % Sortierte Annotationsdaten
+L=xlsread(ssfile); % 
+%Aktivitätzeit der sortierten Aktivitätsannotation als Referenz zur von der zu erstellenden Graphiken 
+aa=xlsread(anofile,'D2:E180');
+ 
+%Zuweisung der Namen zu der Spalten
+ 
+%packetCounter=L(:,2); 
+timeStamp=L(:,1);  %Time in millisekunden
+AccX=L(:,3);	 AccY=L(:,4); 		AccZ=L(:,5); %% Acceleration in X;Y und Z Achse 
+GyrX=L(:,6);	 GyrY=L(:,7); 		GyrZ=L(:,8); %% Geschwindigkeit in X;Y und Z Achse
+MagX=L(:,9);	 MagY=L(:,10); 	MagZ=L(:,11);%% Magnitude in X;Y und Z Achse
+Q0=L(:,12); 	Q1=L(:,13); 		Q2=L(:,14); 	Q3=L(:,15); %% Orientation Q0,-1,-2,-3
+Vbat=L(:,16); % Verbrauchbatterie
+ 
+%Umrechnung mit der Formel und Parameter aus dem Nutzerbuch der Sensor
+ 
+Ka=19.613; Kg=250; Km=0.007629; % Umrechnungsparameter als Konstante Eingeben
+ 
+timeStamp= timeStamp/1000; %%% Start- und Endzeit von Sekunden in Millisekunden umrechnen 
+AccX=Ka*AccX/32768; AccY= Ka*AccY/32768;AccZ=Ka*AccZ/32768;% Umrechnung von AccX,-Y,-Z
+GyrX=Kg*GyrX/32768; GyrY=Kg*GyrY/32768; GyrZ=Kg*GyrZ/32768; % Umrechnung von GyrX,-Y,-Z
+MagX=Km*MagX; MagY=Km*MagY; MagZ=Km*MagZ;   % Umrechnung von Magnitude MagX,-Y,-Z
+Q0=Q0/16384; Q1=Q1/16384; Q2=Q2/16384; Q3=Q3/16384;   %Umrechnung von Orientation Q0,-1,-2,-3
+Vbat=1*Vbat;     %%%Verbrauchbatterie
+ 
+% Graphik
+figure('Name',' FLIP-Acceleration');
+subplot(3,1,1); plot(timeStamp(1:2000), AccX(1:2000),'b');xlabel('Times');ylabel('AccX');
+title('Gesamte Graphik in Sensorzeit'); grid on;hold on;
+subplot(3,1,2); plot(timeStamp(1:2000), AccY(1:2000),'g');xlabel('Times');ylabel('AccY');grid on;hold on;
+subplot(3,1,3); plot(timeStamp(1:2000), AccZ(1:2000),'b');xlabel('Times');ylabel('AccZ');grid on;hold on;
+figure('Name',' FLIP-Angular Velocity');
+subplot(3,1,1); plot(timeStamp(1:2000), GyrX(1:2000),'b');xlabel('Times');ylabel('GyrX');grid on;hold on;
+subplot(3,1,2); plot(timeStamp(1:2000), GyrY(1:2000),'g');xlabel('Times');ylabel('GyrY');grid on;hold on;
+subplot(3,1,3); plot(timeStamp(1:2000), GyrZ(1:2000),'b');xlabel('Times');ylabel('GyrZ');grid on;hold on;
+figure('Name','FLIP-Magnitude');
+subplot(3,1,1); plot(timeStamp(1:2000), MagX(1:2000),'b');xlabel('Times');ylabel('MagX');grid on;hold on;
+subplot(3,1,2); plot(timeStamp(1:2000), MagY(1:2000),'g');xlabel('Times');ylabel('MagY');grid on;hold on;
+subplot(3,1,3); plot(timeStamp(1:2000), MagZ(1:2000),'b');xlabel('Times');ylabel('MagZ');grid on;hold on;
+figure('Name','FLIP-Orientation');
+subplot(2,2,1); plot(timeStamp(1:2000), Q0(1:2000),'b');xlabel('Times');ylabel('Q0');grid on;hold on;
+subplot(2,2,2); plot(timeStamp(1:2000), Q1(1:2000),'g');xlabel('Times');ylabel('Q1');grid on;hold on;
+subplot(2,2,3); plot(timeStamp(1:2000), Q2(1:2000),'b');xlabel('Times');ylabel('Q2');grid on;hold on;
+subplot(2,2,4); plot(timeStamp(1:2000), Q2(1:2000),'b');xlabel('Times');ylabel('Q2');grid on;hold on;
+figure('Name',' FLIP- Batterie Voltage ');
+plot(timeStamp(1:2000), Vbat(1:2000),'b');xlabel('Times');ylabel('Vbat');grid on;hold on;
+
+%%% Interaktive Eingabe von FlIP_Zeit
+flipv = input('Flip des Videos Anfangszeit in Sekunden eingeben:');
+flips = input('Anfangszeit des Flip Sensors in Sekunden eingeben: ');
+ 
+%FLIP_Zeit als Konstant für die Video eingeben: Flip[Video Torso Recht Link]
+%flipv=10.040;              % Flip_Video als Konstante  je nach untersuchte Video
+%flips= 6.778 ; 		% Flip_Sensor als Konstante je nach untersuchte Video
+offset= flipv-flips;	% Zeitunterschied zwischen Videozeit und Sensorzeit
+%%% Wie oft ist pro Sekunden beobachtet(fs) und wie lange dauert eine Beobachtung(T)?
+fs=100; %%% dh. 1/10 Millisec*1Sec= 100 Beobachtungen pro Sekunden
+T = 1/fs; %%% Jede Beobachtung oder Sensoraufnahme der Bewegung in jede 10 Millisekunden stattfinden
+
+az = input('Anfangzeile der Aktivität eingeben: ');%% Anfangszeile der Aktivität in dem Annotationsblatt
+ez = input('Endezeile der Aktivität eingeben ');%% Endeszeile der Aktivität in dem Annotationsblatt
+
+%%% Initialisierung von Graphikzähler
+az1=az;
+az2=az;
+az3=az;
+
+idv= input('Nummer der Video eingeben: '); % idvideo for making directory
+prompt= {'Nummer der Video eingeben', 'Das Sensor Präfix (T/R/L)eingeben:',  'Die untersuchte Aktivität eingeben:'};
+dlg_title='Die Inputvariable';
+inputd =inputdlg(prompt,dlg_title);
+idvideo =inputd(1);
+idsensor =upper(inputd(2));
+activity =upper(inputd(3));
+%%% Titelteile als String von Excelblatt der statistischen Analyse
+t1={'Globalergebnisse:Statistische Analyse der Aktivität'}; 
+t2={' aus Video'};
+t3={'mit Daten aus Sensor'};
+t4={'mit Offset'};
+%%% Folder zur Speicherung der Graphiken mit Referenz zur Nummer der Video
+% Building  directories name 
+v1=strcat('AccDPlott',num2str(idv));
+v2=strcat('AccBMPDPlot',num2str(idv));
+v3=strcat('gyrDPlot',num2str(idv));
+v4=strcat('gyrBMPDPlot',num2str(idv));
+v5=strcat('MagDPlot',num2str(idv));
+v6=strcat('MagBMPDPlot',num2str(idv));
+v7=strcat('QDPlott',num2str(idv));
+v8=strcat('QJPGDPlot',num2str(idv));
+ 
+%%% Folder zur Speicherung der Graphiken
+mkdir(v1); %zum speichern Accelration Graphiken in format.fig
+mkdir(v2); %zum speichern Accelration Graphiken in format.bmp
+mkdir(v3); %zum speichern Angular Velocity Graphiken in format.fig
+mkdir(v4); %zum speichern Angular Velocity Graphiken in format.bmp
+mkdir(v5); %zum speichern Magnetic Fields Graphiken in format.fig 
+mkdir(v6); %zum speichern Magnetic Fields Graphiken in format.bmp 
+mkdir(v7); %zum speichern Orientation Graphiken in format.fig
+mkdir(v8); %zum speichern Orientation Graphiken in format.bmp
+
+ 
+for  i  =  az:ez %Aktivitätszähler bzw. Graphikzähler
+      an=round((aa(i,1)-offset)/T); % Anfangszeile der Aktivitätsdaten in der Sensordaten
+      en=round((aa(i,2)-offset)/T); % Endzeile der Aktivitätsdaten in der Sensordaten
+      figure(i) % Grahikzähler
+      subplot(3,1,1); plot(timeStamp(an:en), AccX(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('AccX[m/sec^2]');
+      title(strcat(activity,' , ',idsensor,', V',idvideo,' in Sensorzeit mit Offset: ', num2str(offset), 'sec'));
+      grid on;hold on;
+      subplot(3,1,2); plot(timeStamp(an:en), AccY(an:en),'r','LineWidth',1.75);xlabel('Times[sec]');ylabel('AccY[m/sec^2]');
+      grid on;hold on;%%
+      subplot(3,1,3); plot(timeStamp(an:en), AccZ(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('AccZ[m/sec^2]');
+      grid on; hold on;%%
+      % Graphik speichern in vorgegebenen Folder
+      figurelist=findobj('type','figure');
+      for   j=1:numel(figurelist)
+   saveas(figurelist(j),fullfile(v1,['figure' num2str(figurelist(j)) '.fig']));%%%% speichert in Format fig
+   saveas(figurelist(j),fullfile(v2,['figure' num2str(figurelist(j)) '.bmp']));%%%% speichert in Format .bmp
+      end
+    
+    %%%%%%%%%%%%%    Grunddaten für statistische Analyse    %%%%%%%%%%%%%%%%%%%
+    
+    glbd=[timeStamp(an:en) AccX(an:en) AccY(an:en) AccZ(an:en) GyrX(an:en) GyrY(an:en) GyrZ(an:en)...
+        	      MagX(an:en) MagY(an:en) MagZ(an:en) Q0(an:en) Q1(an:en) Q2(an:en) Q3(an:en) Vbat(an:en)];
+    sheet=num2str(az);
+    globdata=xlswrite('SD4.xls',glbd,sheet);
+    glbdp=roundn(glbd,-2);
+    glbdpeak=xlswrite('SD5.xls',glbdp,sheet);
+    save globdata;
+    
+    %%%%%%%%%%%%%%%%%%% STATISTIK %%%%%%%%%%%%%%%%%%%%%%%%%%
+    stfile  = xlsread('SD4.xls', sheet);       %Importieren der Graphikdaten für die Statistik
+    cdds    = stfile(:,2:15);                   % Alle Variablen ohne 'timeStamp' in ersten Spalten
+    
+    %%%      Statistische Variablen
+    nvsa= [{'Merkmale'},{'Min'},{'Max'},{'Range'},{'Mean'},{'Median'},...
+        	       {'Mode'},{'Std'},{'Var'},{'1rstQu'},{'3rdQu'},{'Iqr'}];
+    nvsa= (nvsa)' ;        % Transpose nvsa to get it in one column
+    nva  =  [{'AccX'} {'AccY'} {'AccZ'} {'GyrX'} {'GyrY'} {'GyrZ'}...
+                 {'MagX'} {'MagY'} {'MagZ'} {'Q0'} {'Q1'} {'Q2'} {'Q3'} {'Vbat'}];
+    sstat = struct('Merkmale', {nva},'Min',{roundn(min(cdds),-5)},'Max',{roundn(max(cdds),-5)},...
+                  'Range',{roundn(range(cdds),-5)},...
+                  'Mean',{roundn(mean(cdds),5)},'Median',{roundn(median(cdds),-5)},...
+                  'Mode',{roundn(mode(cdds),-5)}, 'Std',{roundn(std(cdds),-5)},'Var',{roundn(var(cdds),-5)},...
+                  'IrstQ',{roundn(quantile(cdds,0.25),-5)}, 'rdQ',{roundn(quantile(cdds,.75),-5)},'Iqr',{roundn(iqr(cdds),-5)} );
+    
+    %  Die Ergebnisse als Matrix
+    
+    matsstat=[sstat.Min; sstat.Max; sstat.Range; sstat.Mean; sstat.Median;...
+              sstat.Mode; sstat.Std; sstat.Var; sstat.IrstQ; sstat.rdQ; sstat.Iqr];
+    [r,p]= corrcoef(cdds); % Berechnung der Korrelationskoeffizient
+% Find significant correlations. Validität der Korrelation zwischen den Variablen in Zeile ri und der Spalte cj 
+%unter  Berücksichtigung der p<0.05
+    [ri,cj]= find(p<0.05);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+   
+   %Kopie of  the summary of the statistic
+    
+    sheetb= num2str(az);% Name der Excelblatt für die Teilergebnisse der Analyse
+    %%%Die Ergebnissen von der Statistik in Exportieren in Excelblatt speichern
+    k2= {'Matrix der Korrelationskoeffizient: Analyse der Abhängigkeit zwischen Variablen'};
+    k3= {'Prüfung der Korrelation: Variablen mit höheren Korrelation Koeffizienten. Abhängigkeit zwischen Variablen'};
+    k4= {'P-Value - Signifikanztest: Prüfung der Validität der Korrelation zwischen Variablen [AccX .... Q3 Vbat]'};
+    k5= [{'Abh.Var'};{'Unabh.Var'}] ; %%% Ab-,unabhängige Variable
+    k6= {'Spaltennummerierung zur Verständnis der Tabelle in Range [B42:GP43]'};
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Kopie von Teilergebnisse in dem Excel-Arbeitsbuch 'sheetb{z}'
+    xlswrite('sstat.xls',t1,sheetb,'A1');
+    xlswrite('sstat.xls',activity,sheetb,'E1');
+    xlswrite('sstat.xls',t2,sheetb,'F1');
+    xlswrite('sstat.xls',idvideo,sheetb,'G1');
+    xlswrite('sstat.xls',t3,sheetb,'H1');
+    xlswrite('sstat.xls',idsensor,sheetb,'J1');
+    xlswrite('sstat.xls',t4,sheetb,'K1');
+    xlswrite('sstat.xls',offset,sheetb,'L1');
+    xlswrite('sstat.xls',nva,sheetb,'B3:O3'); %%Analysierte Variablennamen
+    xlswrite('sstat.xls',nvsa,sheetb,'A3:A14');% Statistikmerkmale in der 1.Spalten der Exceltabelle
+    xlswrite('sstat.xls',matsstat,sheetb,'B4:O14');%%% Werte von stistische Bewertung
+    xlswrite('sstat.xls',k2,sheetb,'A18');% Überschrift der Korrelationsmatrix
+    xlswrite('sstat.xls',k4,sheetb,'P18');
+    xlswrite('sstat.xls',nva,sheetb,'B19:O19');% Überschrift der Korrelationsmatrix
+    xlswrite('sstat.xls',nva,sheetb,'P19:AC19');
+    xlswrite('sstat.xls',(nva)',sheetb,'A20:A33');
+    xlswrite('sstat.xls',[r,p],sheetb,'B20:AC33');%%% Korrelationskoefizienten
+    xlswrite('sstat.xls',(nva)',sheetb,'AD20:AD33')%%% Lesbarkeit erleichtern
+    xlswrite('sstat.xls',k6,sheetb,'A35');
+    xlswrite('sstat.xls',{'Variable'},sheetb,'A37');
+    xlswrite('sstat.xls',nva,sheetb,'B37:O37')%%% Namen der Variablen
+    xlswrite('sstat.xls',{'Spaltennummer'},sheetb,'A38');
+    xlswrite('sstat.xls',1:14,sheetb,'B38:O38')%%% Nummerierung der Variablen
+    xlswrite('sstat.xls',k3,sheetb,'A40');%Überschrift für die Variablemen mit höheren Korrelation
+    xlswrite('sstat.xls',k5,sheetb,'A42:A43');
+    xlswrite('sstat.xls',([ri,cj])',sheetb,'B42:GP43');%14 Variablen insgesamt und in Maximum kann der Wert einer Variable
+    % abhängig von den 13 anderenVariablen sein.dh. 14Beobachtete Variable*13Anderen Variablen*2Zeile/Variable
+    
+    save sstat; save matsstat;
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    az=az+1;
+   close(figure (i));
+end
+
+%%% Andere Graphiken: Magnetische Feld, Velocity, Orientation
+
+%Angular Velocity
+for ii=az1:ez
+     an=round((aa(ii,1)-offset)/T);
+     en=round((aa(ii,2)-offset)/T);
+    
+     figure(ii)
+     subplot(3,1,1); plot(timeStamp(an:en), GyrX(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('GyrX in[degree/sec]');
+     title(strcat(activity,' , ',idsensor,', V',idvideo,' in Sensorzeit mit Offset: ', num2str(offset), 'sec'));grid on;hold on;
+     subplot(3,1,2); plot(timeStamp(an:en), GyrY(an:en),'r','LineWidth',1.75);xlabel('Times[sec]');ylabel('GyrY in[degree/sec]');
+     grid on; hold on;%%%title('GyrY');
+     subplot(3,1,3); plot(timeStamp(an:en), GyrZ(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('GyrZ in[degree/sec]');
+     grid  on; hold on;%%%title('GyrZ');
+     figurelist1=findobj('type','figure');
+    for j1=1:numel(figurelist1)
+         saveas(figurelist1(j1),fullfile(v3,['figure' num2str(figurelist1(j1)) '.fig'])); %%%% speichert in Format  .fig 
+         saveas(figurelist1(j1),fullfile(v4,['figure' num2str(figurelist1(j1)) '.bmp'])); %%%% speichert in Format  .bmp 
+    end
+    close(figure(ii));
+    az1=az1+1;
+end
+
+% Magnetic Fields
+for w=az2:ez
+    an=round((aa(w,1)-offset)/T);
+    en=round((aa(w,2)-offset)/T);
+    
+    figure(w)
+    subplot(3,1,1); plot(timeStamp(an:en), MagX(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('MagX in [uT]');
+    title(strcat(activity,' , ',idsensor,', V',idvideo,' in Sensorzeit mit Offset: ', num2str(offset), 'sec'));grid on;hold on;
+    subplot(3,1,2); plot(timeStamp(an:en), MagY(an:en),'r','LineWidth',1.75);xlabel('Times[sec]');ylabel('MagY in [uT]');
+    grid on; hold on;
+    subplot(3,1,3); plot(timeStamp(an:en), MagZ(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('MagZ in [uT]'); 
+    grid on; hold on;
+    figurelist2=findobj('type','figure');
+    for j2=1:numel(figurelist2)
+        saveas(figurelist2(j2),fullfile(v5,['figure' num2str(figurelist2(j2)) '.fig'])); %%%% speichert in Format fig 
+        saveas(figurelist2(j2),fullfile(v6,['figure' num2str(figurelist2(j2)) '.bmp'])); %%%% speichert in Format  .bmp     
+    end
+    close(figure(w));
+    az2=az2+1;
+end
+
+% Orientation
+for ww=az3:ez
+    an=round((aa(ww,1)-offset)/T);
+    en=round((aa(ww,2)-offset)/T);
+    
+    figure(ww)
+    subplot(4,1,1); plot(timeStamp(an:en), Q0(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('Orientation  Q0');
+    title(strcat(activity,' , ',idsensor,', V',idvideo,' in Sensorzeit mit Offset: ', num2str(offset), 'sec'));grid on;hold on;
+    subplot(4,1,2); plot(timeStamp(an:en), Q1(an:en),'r','LineWidth',1.75);xlabel('Times[sec]');ylabel('Orientation Q1');
+    grid on; hold on;
+    subplot(4,1,3); plot(timeStamp(an:en), Q2(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('Orientation Q2');
+    grid on; hold on;
+    subplot(4,1,4); plot(timeStamp(an:en), Q3(an:en),'b','LineWidth',1.75);xlabel('Times[sec]');ylabel('Orientation Q3'); 
+    grid on; hold on;
+    figurelist3=findobj('type','figure');
+    for j3=1:numel(figurelist3)
+        saveas(figurelist3(j3),fullfile(v7,['figure' num2str(figurelist3(j3)) '.fig'])); %%%% speichert in Format  .fig 
+        saveas(figurelist3(j3),fullfile(v8,['figure' num2str(figurelist3(j3)) '.bmp'])); %%%% speichert in Format  .bmp        
+    end
+    close(figure(ww));
+    az3=az3+1;
+end
+
+end
+
+
+
+function[sheet az ez n_activity dfile sfile ]=Combinedata()
+az= input('Geben Sie die Anfangzeile der Aktivität ein:     '); %%% Aus Aktivitätsfile zu entnehmen 
+ez= input('Geben Sie die Endezeile der Aktivität ein:         '); %%% Aus Aktivitätsfile zu entnehmen
+n_activity= ez-az+1;
+prompt= {'Geben Sie die untersuchte Aktivität ein!'};
+dlg_title='Die untersuchte Aktivität';
+inputd   =inputdlg(prompt,dlg_title);
+activity =upper(inputd);
+desfile= 'SD10.xls';
+kst1=    '%WICHTIG! Zur Erstellung von Exceltabelle "';
+kst2=' "für die statistische Analyse:  ';                   
+disp(strcat(kst1,  desfile, upper(kst2), upper(' To Do:')));
+disp('%1-)Kopieren  Sie die angezeigte Kommandoswindows von "xlswrite... " bis "...)"und');
+disp('%2-)Fügen Sie es Kommando windows ein!');
+disp('%3-)Setzen Sie bitte  die Dateinamen {SD4.xls} und {SD10.xls} in den Einzelzitatenmarken ein     %');
+disp('%4-)Führen Sie das direkt in Kommandos windows aus! Press ENTER ');
+disp('                                %%                            ')
+disp(strcat('sfile= SD4.xls', ' ;')); % The source file that contains the data  of activity that will be combined 
+disp(strcat('dfile= SD10.xls', ' ;')); % Destination file
+sheetd=cellstr(activity); % The studied activity
+%Display the Part of the script that will be used to combine the  considered activity’s data for the global statistics 
+dfile={'SD10.xls'};       %The destinations file that will contains the combined data of activity
+
+% The beginning of the Syntax to write the  matrix of the combined sheets 
+disp(strcat('xlswrite(','dfile',',['));
+For   j= az:ez-1
+        sfile={'SD4.xls'}; %Source file / Name der Datenquelle
+        sheet= num2str(az); % Name of  the sheet/ Nennen oder  Nummerierung  der  Arbeitsblätter
+        % The beginning of the Synthax to write the sheets that will be combined y axes  
+        disp(strcat('xlsread(','sfile',',', sheet,')',';'));
+        az=az+1;
+End
+
+disp(strcat('xlsread(','sfile',',', num2str(ez),')],'));%%%The end of the matrix syntax
+disp(sheetd);disp(')'); %%The name of the sheet. Sheet’s name is the activity. End of the program that mus be compiled
+disp('  %%                                                                %%');
+disp(upper('%    Vielen Dank für ihre Aufmerksamkeit.')); 
+end
+
+
+function [dfile]=STGLOB()
+%%% Interaktive Eingabe von FlIP_Zeit
+flipv = input('Flip des Videos Anfangszeit in Sekunden eingeben:');
+flips = input('Anfangszeit des Flip Sensors in Sekunden eingeben: ');
+offset=flipv-flips;
+
+idvideo=  input('Geben Sie bitte die Videosnummer ein!  ');%%%This to specify the video 
+prompt =  {'Geben Sie das Sensor Präfix (T/R/L)ein:','Geben Sie die untersuchte Aktivität ein!'};
+dlg_title='The input Variable';
+inputd   =inputdlg(prompt,dlg_title);
+idsensor =upper(inputd(1));
+activity =upper(inputd(2));
+%%% Titelteile als String von Excelblatt der statistischen Analyse
+t1={'Globalergebnisse:Statistische Analyse der Aktivität'}; 
+t2={' aus Video'};
+t3={'mit Daten aus Sensor'};
+t4={'mit Offset'};
+
+sheetb=strcat('MT',num2str(idvideo));% Building the sheetname for the statistik .The sheet name must be changed according to %the considered 'activity'. This sheet will record the statistik
+dfile=xlsread('SD10.xls','MT');%%% The sheet must be specified in order to use the correct data 
+cdds= dfile(:,2:15);%%% All the variables are considered excepts the colomn of 'Timestamps' in the first colomn
+%Statistische Variablen
+nvsa=[{'Merkmale'},{'Min'},{'Max'},{'Range'},{'Mean'},{'Median'},{'Mode'},{'Std'},{'Var'},{'1rstQu'},{'3rdQu'},{'Iqr'}];
+nvsa=(nvsa)' ; %%% Transpose nvsa to get it in one colomn
+nva=[{'AccX'} {'AccY'} {'AccZ'} {'GyrX'} {'GyrY'} {'GyrZ'} {'MagX'} {'MagY'} {'MagZ'} {'Q0'} {'Q1'} {'Q2'} {'Q3'} {'Vbat'} ];
+sstat = struct('Merkmale', {nva},'Min',{roundn(min(cdds),-5)},'Max',{roundn(max(cdds),5)}, ...
+'Range',{roundn(range(cdds),-5)},'Mean',{roundn(mean(cdds),-5)}, ...
+'Median',{roundn(median(cdds),-5)},'Mode',{roundn(mode(cdds),-5)}, ...
+'Std',{roundn(std(cdds),-5)},'Var',{roundn(var(cdds),-5)}, 'IrstQ',{roundn(quantile(cdds,0.25),-5)}, ...      'rdQ',{roundn(quantile(cdds,.75),-5)} ,'Iqr',{roundn(iqr(cdds),-5)} ); %
+Gmatsstat     = [sstat.Min;sstat.Max;sstat.Range;sstat.Mean;sstat.Median; ...
+sstat.Mode; sstat.Std;sstat.Var;sstat.IrstQ; sstat.rdQ; sstat.Iqr];
+[r,p]= corrcoef(cdds);
+[ri,cj]= find(p<0.05);
+k2= {'Matrix der Korrelationskoeffizient: Analyse der Abhängigkeit zwischen Variablen'};
+k3= {'Prüfung der Korrelation: Variablen mit höheren Korrelation Koeffizienten. Abhängigkeit zwischen Variablen'};
+k4={'P-Value - Signifikanztest: Prüfung der Validität der Korrelation zwischen Variablen [AccX ....  Q3, Vbat]'};
+k5= [{'Abh.Var'};{'Unabh.Var'}] ; %%% Ab-,unabhängige Variable
+k6={'Spaltennummerierung zur Verständnis der Tabelle in Range  [B42:GP43]'};
+
+xlswrite('gstat.xls',t1,sheetb,'A1');
+xlswrite('gstat.xls',activity,sheetb,'E1');
+xlswrite('gstat.xls',t2,sheetb,'F1');
+xlswrite('gstat.xls',idvideo,sheetb,'G1');
+xlswrite('gstat.xls',t3,sheetb,'H1');
+xlswrite('gstat.xls',idsensor,sheetb,'J1');
+xlswrite('gstat.xls',t4,sheetb,'K1');
+xlswrite('gstat.xls',offset,sheetb,'L1');
+
+xlswrite('gstat.xls',nva,sheetb,'B3:O3'); %%Analysierte Variablennamen
+xlswrite('gstat.xls',nvsa,sheetb,'A3:A14'); %% Statistiche Merkmale in der 1.Spalten der Exceltabelle
+xlswrite('gstat.xls',gmatsstat,sheetb,'B4:O14');%%% Werte von stistische Bewertung
+xlswrite('gstat.xls',k2,sheetb,'A18');% Überschrift der Korrelationsmatrix
+xlswrite('gstat.xls',k4,sheetb,'P18');
+
+xlswrite('gstat.xls',nva,sheetb,'B19:O19');% Überschrift der Korrelationsmatrix
+xlswrite('gstat.xls',nva,sheetb,'P19:AC19');
+xlswrite('gstat.xls',(nva)',sheetb,'A20:A33');
+xlswrite('gstat.xls',[r,p],sheetb,'B20:AC33');%%% Korrelationskoefizienten
+xlswrite('gstat.xls',(nva)',sheetb,'AD20:AD33'); % Variablen in der Spalten zur Erleichterung der Lder Tabelle  
+
+xlswrite('gstat.xls',k6,sheetb,'A35');
+xlswrite('gstat.xls',{'Variable'},sheetb,'A37');
+xlswrite('gstat.xls',nva,sheetb,'B37:O37')%%% Namen der Variablen
+xlswrite('gstat.xls',{'Spaltennummer'},sheetb,'A38');
+xlswrite('gstat.xls',1:14,sheetb,'B38:O38');%%% Nummerierung der Variablen
+
+xlswrite('gstat.xls',k3,sheetb,'A40');%Überschrift für die Variablemen mit höheren Korrelation
+xlswrite('gstat.xls',k5,sheetb,'A42:A43');
+xlswrite('gstat.xls',([ri,cj])',sheetb,'B42:GP43');%14 Variablen insgesamt und
+%%%in Maximum kann der Wert einer Variable abhängig von den 13 anderen
+%%%Variablen sein.dh. 14Beobachtete Variable*13Anderen Variablen*2Zeile/Variable
+save gsstat; save gmatsstat;
+
+end
+
+
+function[sheet az ez n_activity dfile sfile ]=Combdstat()
+az= input('Geben Sie die Anfangzeile der Aktivität ein:     '); %%% Aus Aktivitätsfile zu entnehmen 
+ez= input('Geben Sie die Endezeile der Aktivität ein:       '); %%% Aus Aktivitätsfile zu entnehmen
+n_activity= ez-az+1; %% Häufigkeit der Aktivität bei der Kommissionierung
+
+disp('%%  Wichtige Anweisungen: Folgen Sie den Anweisungen unten                                 %%');
+desfile= 'SD11.xls';
+%%% Die Anweisung für die Ausführung von der erhaltene Befehle
+disp(strcat(upper('% Zur Erstellung von Exceltabelle   "'),desfile, upper(' "für die statistische Analyse:  '), upper(' To Do:')));
+disp('%1-) Kopieren Sie die oben angezeigte gesamte Kommandos von "xlswrite(...bis  desheet,desrange)"'); 
+disp('%2-) Fügen Sie den kopierten Befehl auf der Kommandozeile ein');
+disp('%3-) Setzen Sie bitte {sstat.xls},{SD11.xls},{B7:O7},{Meanactivity},{B2} in  Einzelzitatenmarken.');
+disp('%4-) Führen Sie das direkt in Kommandos windows aus! ');
+disp('%                                                                         %');
+disp(strcat('sfile= sstat.xls', ' ;'));
+disp(strcat('dfile= SD11.xls', ' ;'));
+disp(['Range ','= ', 'B7:O7 ;']); % The part or range of the the sheet where the desired statistics is 
+disp(['dsheet ','=', ' Meanactivity ;']);%% Destination sheet
+disp(['desrange',' = ','B2 ;']); %%% Destinaions Range in destination sheet
+%Display the Part of the script that will be used to combine the data of the considered activity for the global statistics of the activity
+dfile={'SD11.xls'}; %%%%The destinations file that will contains the combined data of activity
+disp(strcat('xlswrite(','dfile',',[')); % The beginning of the Synthax to write the  matrix of the combined sheets disp(strcat('sfile  = Day3.xls', ' ;'));%%%%The source file that contains the combined data of activity of the AccY-axes
+
+for  j=az:ez-1
+       sfile={'sstat.xls'};
+       sheet=az;      
+       % The beginning of the Synthax to write the sheets that will be combined y axes   
+       disp(strcat('xlsread(','sfile',',', num2str(sheet),', Range',')',';')); 
+       az=az+1;   
+end
+%This is the end of the matrix synthaxe.Die letzte Zeile der Befehl mit Destinationsblatt und Range in Excelblatt 
+
+disp(strcat('xlsread(','sfile',',', num2str(ez),', Range',')], dsheet, desrange)')); % 
+
+disp('%                                                                           %');
+disp(upper('% Vielen Dank für ihre Aufmerksamkeit.%')); 
+%%% Den Kopf von SD11.xls vorbereiten
+xlswrite('SD11.xls',[{'AccX'} {'AccY'} {'AccZ'} {'GyrX'} {'GyrY'} {'GyrZ'} ...
+                                  {'MagX'} {'MagY'} {'MagZ'} {'Q0'} {'Q1'} {'Q2'} {'Q3'} {'Vbat'}],'Meanactivity','B1:O1');   
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+end
+
+
+%The purpose of these function is to write Command that will be executed on command windows
+% The execution of the obtained command will copy the disired statistic in the excel file" act.xls" from the cell "B2" 
+% Here we want to copy the "mean" from the column 'AccY' of the Activity  "WALK" where the minimum frequency in % videos is '6'; so starting with from line '2' to '7' and column '3' corresponding to C2:C7  
+%%
+function[ansheet,nvideo]=Vorhypo( )
+
+%'Geben Sie die untersuchte Aktivität  als konstante ein!'
+activity= 'WALK';
+sfile= strcat('KM',activity, '.xlsx'); % The  excel workbook with activity’s Mean by every Video
+
+ansheet= input('Geben sie die Nummer der statistiksanfangsblatts ein:     ');
+nvideo = input('Geben sie bitte die Anzahl der untersuchten Videos ein:    ');
+
+disp('%%%%                                                %%%%');
+% Destination sheet
+disp(strcat('dsheet ','=', activity,';  % "',activity, ' "in Einzelzitatmarken und ändere die nach unersuchte Aktivität'));
+disp(strcat('sfile = ',sfile, ';     %%%"', sfile,'" in EinzelZitatmarken einsetzen'));
+disp(strcat('dfile= act.xls', ' ;    %%% "act.xls" in Einzelzitatmarken ensezten'));
+disp(['desrange',' = ','B2 ;         %%% B2 in Einzelzitatmarken einsetzen']); %%% Destinaions Range in destination sheet
+disp('Range= C2:C7;   %%%"C2:C7" in einzelzitatmarken einetzen.Dies Position entspricht Mean AccY');
+disp('              %%% und kann geändert werden ,je Variable und untersuchte AKtivität');
+disp(strcat('xlswrite(','dfile',',['));     % The beginning of the Synthax to write the  matrix of the combined sheets 
+
+for  i=ansheet:nvideo-1		 % Count the sheets in the original Worksbooks 
+       sheet=num2str(ansheet);
+      %The beginning of the Syntax to write the sheets that will be combined. Here we add ',' after 'Range)' to write  the
+      %data in  column and '...' to signify to  Matlab to stay on the same line although the command goes to the next line 
+      disp(strcat('xlsread(','sfile',',',sheet,',','Range',')',',','...')); 
+
+      ansheet=ansheet+1;
+end
+
+disp(strcat('xlsread(','sfile',',', num2str(nvideo),',Range',')], dsheet, desrange)')); %  End of the data matrix
+
+disp('%                                                                           %');
+disp('Kopiere die oben angeszeigt Code von "dsheet=... bis dsheet,desrange)" und führen Sie das aus!!')
+disp(upper('% Vielen Dank für ihre Aufmerksamkeit.%'));
+
+end    
+%%
+%%
+%%
+function[ansheet,nvideo]=vorhyooo( )
+
+%'Geben Sie die untersuchte Aktivität  als konstante ein!'
+prompt =  {'Geben Sie die Variable ein:','Geben Sie die untersuchte Aktivität ein!',...
+           'Geben Sie die Spaltenbuchstabe ein'};
+dlg_title='The input Variable';
+inputd   =inputdlg(prompt,dlg_title);
+ivar =upper(inputd(1));
+activity =upper(inputd(2));
+spalte_var = upper(inputd(3));% Buchsabe der Variable in der Source-file (sfile)
+zz= input('Anzahl der Beobachtung oder maximale Datenzeile eingeben!  ');
+zeilen_zaehler = zz+1; % Festlegung der kopierenden Datenzeile aus der Source-File 
+ref_range = strcat(spalte_var,num2str(2),':',spalte_var, num2str(zeilen_zaehler));
+adfile = strcat('KD', activity, '.xls');
+%activity= 'WALK';
+sfile= strcat('KM',activity, '.xlsx'); % The  excel workbook with activity’s Mean by every Video
+
+%ansheet= input('Geben Sie bitte die Nummer der statistiksanfangsblatts ein:     ');
+nvideo = input('Geben Sie bitte die Anzahl der untersuchten Videos ein:   ');
+varz=1;
+anzvar=13;        %[AccX,....,Q0,Q1,Q2,Q3]  insgesamt 13 Variablen
+for j=varz:anzvar         % Variablenzähler oder Datenseitenzähler
+    dsheet=varz;
+    disp('%%%%                                                %%%%');
+    disp(strcat(upper('Generated Command to copy the  _'), num2str(j), upper('._ Variable')));
+    % Destination sheet
+    disp(strcat('dsheet= ',num2str(varz),';  % "', num2str(varz), ' "in Einzelzitatmarken und ändere die nach unersuchte Aktivität'));
+    disp(strcat('sfile = ',sfile, ';     %"', sfile,'" in EinzelZitatmarken einsetzen'));
+    disp(strcat('dfile = ',adfile,';     %"activity.xls" in Einzelzitatmarken ensezten'));
+    disp(['desrange    =  B2 ;','         % B2 in Einzelzitatmarken einsetzen']); % Destinaions Range in destination sheet
+    disp(strcat('Range = ',ref_range, '; % die Range_',ref_range, '_ in einzelzitatmarken einetzen.'));
+    disp('              %%% und kann geändert werden ,je Variable und untersuchte Aktivität');
+    disp(strcat('xlswrite(','dfile',',['));     % The beginning of the Synthax to write the  matrix of the combined sheets
+    ansheet=1;
+    for i=ansheet:nvideo-1		 % Count the sheets in the original Worksbooks
+        sheet=num2str(ansheet);
+        %The beginning of the Syntax to write the sheets that will be combined. Here we add ',' after 'Range)' to write  the
+        %data in  column and '...' to signify to  Matlab to stay on the same line although the command goes to the next line
+        disp(strcat('xlsread(','sfile',',',sheet,',','Range',')',',','...'));
+        ansheet=ansheet+1;
+    end
+    
+    disp(strcat('xlsread(','sfile',',', num2str(nvideo),',Range',')],', num2str(dsheet), ', desrange)')); %  End of the data matrix
+    
+    disp('%                                                                           %');
+    disp('Kopiere die oben angeszeigt Code von "dsheet=... bis dsheet,desrange)" und führen Sie das aus!!')
+    disp(upper('% Vielen Dank für ihre Aufmerksamkeit.%'));
+    varz=varz+1;
+end 
+end
+%%
+%%
+%%
+% % The purpose of this function is to analyze the activity if there are some difference in by the persons 
+% % Brievly is to conclud if the studied persons, picking systems are the same or  presente differences 
+
+function[hii,cii,statsi,nms1 m1,c1,h1, idvideos]= Anotest()
+
+%%% Konstante für Anotest(): die Idvideos. 
+
+%This is the video for Activity 'WALK' This list must %be updatedor changed for a new activity
+idvideos={'30','51', '56','60', '61', '64','66','100','111', '114', '137'};
+idv={'30','51', '56','60', '61', '64','66','100','111', '114', '137'};
+
+% This is the video for Activity 'GRAP'.This list must be updated or %changed for a new activity 
+%idvideos={'30','51', '56','60', '61','111', '114'};
+%idv={'30','51', '56','60', '61','111', '114','64'};
+% This is the video for Activity 'PICK'.This list must be updated or changed for a new activity
+%idvideos={'100','111', '114', '137','141'};
+%idv={'100','111', '114', '137','141','30','60','61'};
+%This is the video for Activity 'PLACE' This list must be updated or changed for a new activity 
+%idvideos={'30','51','56','60','66','111', '114'}; 
+%idv={'30','51','56','60','66','111', '114','61','64','141'}; 
+%This is the video for Activity 'PUSH' This list must be updated or changed for a new activity  
+%idvideos={'51','56','60','61','64','66'}; 
+%idv={'51','56','60','61','64','66'};
+%This is the video for Activity 'MT' This list must be updated or changed for a new activity  
+%idvideos={'51','56','60','61','64','66','100'}; 
+%idv={'51','56','60','61','64','66','100'};
+
+% because it depend on the videos i studied here
+
+nvideo= input('Geben sie bitte die Anzahl der untersuchten Videos ein:    ');
+cniveau= input('Die gewünschte Signifikanzniveau[0 1]for the t_test eingeben:  ');
+%unit='[m/sec^2]';% For Acc
+unit='[degree/sec]'; %For Gyr
+%unit='B[uT]';% For Magnitude
+%unit='Orientation';% For Orientation
+
+datvariable= 'GyrY';
+activity   = upper('WALK');
+s_sheet= strcat(activity, lower(datvariable));% Quellestatistiksblatt
+fignamev=strcat('Probandenvergleich bei "',activity,'"  bei  "', datvariable, '"');
+fignameact='Statistische Report der Achsen[AccY...Vbat]';
+asfile=strcat('KM', activity, '.xlsx');
+sfile= 'act.xls' ; %%% File with the statistic 'mean'
+
+sfa= xlsread(asfile,activity);%%%Read the source file asfile 
+sf=sfa(:,1:9);
+sfs=sfa(:,1:14);
+bb= xlsread(sfile,  s_sheet);%%%Read the source file 
+aa=bb(1:end,1:nvideo);
+nva=[{'AccX'} {'AccY'} {'AccZ'} {'GyrX'} {'GyrY'} {'GyrZ'} {'MagX'} {'MagY'} {'MagZ'}...
+                    {'Q0'} {'Q1'} {'Q2'} {'Q3'}     {'Vbat'}];
+nvas={'AccX','AccY','AccZ','GyrX','GyrY','GyrZ','MagX','MagY','MagZ', 'Q0','Q1','Q2','Q3','Vbat'};
+
+figure('Name',fignamev, 'NumberTitle','on');
+boxplot(aa,idvideos,'notch','on', 'widths',0.5);
+xlabel('Proband oder Video');ylabel(strcat(datvariable,unit));
+title(strcat('Probandenvergleich für _',activity, '_bei_',datvariable));
+
+[hii,cii,statsi]=anova1(aa,idvideos);
+xlabel('Proband oder Video'); ylabel(datvariable);
+title(strcat('Varianzanalyse für _',activity, '_bei_',datvariable));
+
+figure('Name','Multiple Comparison of Column Mean _a1', 'NumberTitle','on');
+[c1,m1,h1,nms1]=multcompare(statsi); ylabel(strcat('Proband bei - ',datvariable));
+
+figure('Name',fignameact,'NumberTitle','on');
+boxplot(sf,nvas(1:9),'notch','on', 'widths',0.5); %%% Boxplot aller 9 Variablen
+figure('Name','Statistiche Reporte "Acceleration"','NumberTitle','on');
+boxplot(sf(:,1:3), nvas(1:3), 'notch','on', 'widths',0.5 );%%% Boxplot Acceleration
+ylabel('[m/sec^2]');title('Acceleration');
+figure('Name','Statistiche Reporte "Angular Velocity"','NumberTitle','on');
+boxplot(sf(:,4:6), nvas(4:6), 'notch','on', 'widths',0.5 );%%% Boxplot Velocity
+ylabel('[degree/sec]');title('Angular Velocity');
+figure('Name','Statistiche "Magnetic Field"','NumberTitle','on');
+boxplot(sf(:,7:9), nvas(7:9), 'notch','on', 'widths',0.5 )%%% Boxplot Magnitude
+ylabel('B[uT]');title('Magnitude');
+figure('Name','Statistiche "Orientation"','NumberTitle','on'); % Boxplot Orientation
+boxplot(sfs(:,10:13), nvas(10:13), 'notch','on', 'widths',0.5 ); title('Orientation');
+figure('Name','Statistiche "Batterie Voltage"','NumberTitle','on'); % Boxplot Verbrauch Batterie
+boxplot(sfs(:,14), nvas(14), 'notch','on', 'widths',0.5 ); title('Batterie Voltage');
+
+%%% Test of student comparing samples. Purpose is to see of there is any
+%%% difference in the or in the observed video bei same activity
+
+sheet=activity;%%% Sheet for recording t_test value
+tfile=strcat('T',activity,'.xls'); % This file will contain the t_statistics
+[hiii  piii ciii]=ttest(sfs,0, cniveau);
+
+xlswrite(tfile,{upper(strcat('t-test  for  sample analysis _',activity))},sheet,'F1');
+xlswrite(tfile, nva, sheet,'B3:O3');% Datenvariable
+xlswrite(tfile, {'HYPOTHESIS'},sheet, 'A4');
+xlswrite(tfile,hiii, sheet, 'B4:O4');
+
+xlswrite(tfile, nva, sheet, 'B6:O6');% Datenvariable for P-Value
+xlswrite(tfile,{'PROBABILITY'}, sheet, 'A7');
+xlswrite(tfile,piii, sheet, 'B7:O7'); % p_wert nach test von Student
+st1=upper('Konfidenzintervall mit Signifikanzniveau     "');
+stt=cellstr(strcat(st1,num2str(1-cniveau), '"'));
+xlswrite(tfile,stt, sheet, 'F8'); %%% Titel
+xlswrite(tfile, nva, sheet, 'B9:O9');% Datenvariable
+xlswrite(tfile, ciii, sheet, 'B10:O11');% Value von confidence Intervall
+xlswrite(tfile, {'LOWER_BOUND';'UPPER_BOUND'}, sheet,'A10:A11');
+xlswrite(tfile, {'UNTERSUCHTE VIDEOS FÜR AKTIVITÄT_'}, sheet,'F13');
+xlswrite(tfile, {activity}, sheet, 'I13');
+xlswrite(tfile, idv, sheet, 'A15');
+
+s1= strcat(activity, '_fm'); %
+s2= strcat(activity,'_bpm');
+s3= strcat(activity,'_png');
+s4= strcat(activity,'_jpg');
+mkdir(s1); % Folder  s1 machen
+mkdir(s2); % Folder  s2 machen
+mkdir(s3); % Folder  s3 machen
+mkdir(s4); % Folder  s4 machen
+
+figurelist=findobj('type','figure');
+for j=1:numel(figurelist)
+          saveas(figurelist(j),fullfile(s1,['figure' num2str(figurelist(j)) '.fig']));%%%% speichert in Format .fig
+          saveas(figurelist(j),fullfile(s2,['figure' num2str(figurelist(j)) '.bmp']));%%%% speichert in Format .bmp
+          saveas(figurelist(j),fullfile(s3,['figure' num2str(figurelist(j)) '.png']));%%%% speichert in Format .png
+          saveas(figurelist(j),fullfile(s4,['figure' num2str(figurelist(j)) '.jpg']));%%%% speichert in Format .jpg
+end
+end
+
